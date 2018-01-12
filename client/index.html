@@ -1,0 +1,161 @@
+<html>
+<head>
+  <title>Steal Space</title>
+</head>
+<body onresize="windowResized()">
+<canvas id="ctx"></canvas>
+<script src="https://cdn.socket.io/socket.io-1.4.5.js"></script>
+<script>
+  // Box width
+  var bw = 1000;
+  // Box height
+  var bh = 1000;
+  // Food list
+  var FOOD_LIST = {};
+
+  var ctx = document.getElementById("ctx").getContext("2d");
+  ctx.font = '30px Arial'
+  width = window.innerWidth;
+  height = window.innerHeight;
+  ctx.canvas.width = width;
+  ctx.canvas.height = height;
+
+  var socket = io();
+  var clock = new Worker('clock.js');
+
+  socket.on('newPositions',function(data){
+    ctx.clearRect(0,0,width,height);
+    x = data[0].x;
+    y = data[0].y;
+    drawBoard(x, y);
+
+    for(var i = 0; i < FOOD_LIST.length; i++){
+      //console.log(FOOD_LIST[i]);
+      ctx.beginPath();
+      ctx.arc(((width / 2) + (FOOD_LIST[i].x - x)), ((height/2) + (FOOD_LIST[i].y - y)), 10, 0, 2 * Math.PI, false);
+      ctx.fillStyle = 'green';
+      ctx.fill();
+    };
+
+    ctx.strokeStyle = '#333333';
+    ctx.fillText(x + ", " + y + ",,, " + data.length,10,50);
+
+    foodEatCheck(data, FOOD_LIST);
+    playerEatCheck(data);
+
+    data.sort(function (a, b) {
+      return a.size - b.size;
+    });
+
+    for(var i = 0 ; i < data.length; i++){
+      ctx.beginPath();
+      ctx.arc(((width / 2) + (data[i].x - x)), ((height/2) + (data[i].y - y)), Math.sqrt(data[i].size) * 20, 0, 2 * Math.PI, false);
+      ctx.fillStyle = shadeColor(data[i].color, 0.2);
+      ctx.fill();
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = data[i].color;
+      ctx.stroke();
+    }
+  });
+
+  socket.on('clientStart',function(){
+    clock.postMessage('start');
+  });
+
+  socket.on('foodRefresh',function(data){
+    FOOD_LIST = data;
+    //console.log("Food Recieved")
+  });
+
+  // External script runs this in a separate thread so we can continue to listen for server commands
+  clock.onmessage = function(e) {
+
+
+
+  };
+
+  document.onkeydown = function(event){
+    if(event.keyCode === 68)  //D
+      socket.emit('keyPress','right');
+    else if(event.keyCode === 83)  //S
+      socket.emit('keyPress','down');
+    else if(event.keyCode === 65)  //A
+      socket.emit('keyPress','left');
+    else if(event.keyCode === 87)  //W
+      socket.emit('keyPress','up');
+  }
+
+  function shadeColor(color, percent) {
+      var f=parseInt(color.slice(1),16),t=percent<0?0:255,p=percent<0?percent*-1:percent,R=f>>16,G=f>>8&0x00FF,B=f&0x0000FF;
+      return "#"+(0x1000000+(Math.round((t-R)*p)+R)*0x10000+(Math.round((t-G)*p)+G)*0x100+(Math.round((t-B)*p)+B)).toString(16).slice(1);
+  }
+
+  function drawBoard(xPOS, yPOS){
+    ctx.beginPath();
+    for (var x = 0; x <= bw; x += 40) {
+      ctx.moveTo(0.5 + x + width/2 - xPOS, height/2 - yPOS);
+      ctx.lineTo(0.5 + x + width/2 - xPOS, (height/2 - yPOS) + 1000);
+    }
+
+
+    for (var x = 0; x <= bh; x += 40) {
+      ctx.moveTo(width/2 - xPOS, 0.5 + x + height/2 - yPOS);
+      ctx.lineTo((width/2 - xPOS) + 1000, 0.5 + x + height/2 - yPOS);
+    }
+
+    ctx.lineWidth = 0.5;
+    ctx.strokeStyle = "lightgrey";
+    ctx.stroke();
+  }
+
+  function playerEatCheck(data){
+
+    x = data[0].x;
+    y = data[0].y;
+    r = Math.sqrt(data[0].size) * 20;
+
+    for(var i = 0; i < data.length; i++){
+
+      if(i != 0){
+        if(data[i].x < x+(r+10) && data[i].x > x-(r+10) && data[i].y < y+(r+10) && data[i].y > y-(r+10) && data[0].size > data[i].size + 1){
+          if(Math.sqrt(Math.pow(x-data[i].x, 2) + Math.pow(y-data[i].y, 2)) < r - (Math.sqrt(data[i].size) * 20)/2){
+            console.log("Ate player #" + data[i].id);
+            socket.emit('ateplayer',data[i].id);
+          }
+        }
+      }
+    }
+  }
+
+  function getMousePos(canvas, evt) {
+    var rect = canvas.getBoundingClientRect();
+    return {
+      x: evt.clientX - rect.left,
+      y: evt.clientY - rect.top
+    };
+  }
+
+  var canvas = document.getElementById('ctx');
+  var context = canvas.getContext('2d');
+
+  canvas.addEventListener('mousemove', function(evt) {
+    var mouseValx = 0;
+    var mouseValy = 0;
+    var mousePos = getMousePos(canvas, evt);
+    //mousePos.x
+    mouseValx = (mousePos.x - width/2) / 100
+    mouseValy = (mousePos.y - height/2) / 100
+    socket.emit('velocity',{xVelocity:mouseValx, yVelocity:mouseValy});
+  }, false);
+
+  function windowResized(){
+    width = window.innerWidth;
+    height = window.innerHeight;
+    ctx.canvas.width = width;
+    ctx.canvas.height = height;
+    console.log("resize")
+  };
+
+</script>
+</body>
+</html>

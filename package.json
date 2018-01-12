@@ -1,0 +1,11 @@
+{
+  "name": "gold-panner",
+  "version": "0.0.1",
+  "description": "A game that will hopefully not die in its development stage",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC"
+}
